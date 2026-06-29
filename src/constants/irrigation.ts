@@ -18,4 +18,3 @@ export const C = {
 export const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 
 export const NUM_SETORES = 12;
-export const NUM_PINOS = 4;

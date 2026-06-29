@@ -23,7 +23,7 @@ There is no build step for Expo Go. Type checking (`npx tsc --noEmit`) is the pr
 ## Architecture
 
 ### Navigation
-Navigation is **not** the standard Expo Router tab layout. It uses `NativeTabs` from `expo-router/unstable-native-tabs`, manually configured in `src/components/app-tabs.tsx`. The three tabs map to routes by `name` prop: `index`, `pinos`, `logs`.
+Navigation is **not** the standard Expo Router tab layout. It uses `NativeTabs` from `expo-router/unstable-native-tabs`, manually configured in `src/components/app-tabs.tsx`. The two tabs map to routes by `name` prop: `index`, `logs`.
 
 `src/app/explore.tsx` exists but is **not** referenced in any tab trigger — it is an unreachable leftover from the project template. Do not use it.
 
@@ -54,7 +54,6 @@ All Firestore paths are prefixed with the MAC: `controllers/{mac}/...`
 | Path | Writer | Reader |
 |---|---|---|
 | `config/main` | App | ESP32 |
-| `pinos/main` | App | ESP32 |
 | `status/main` | ESP32 | App (via `onSnapshot`) |
 | `comandos/{id}` | App | ESP32 |
 | `logs/{id}` | ESP32 | App |
@@ -62,4 +61,4 @@ All Firestore paths are prefixed with the MAC: `controllers/{mac}/...`
 Commands (iniciar/parar) are written as documents with `processado: false`. The ESP32 executes them and sets `processado: true`. The app does not wait for confirmation — it fires and relies on the `status` listener to reflect the result.
 
 ### Constants
-`src/constants/irrigation.ts` holds the design system colors (`C.*`), `DIAS` array, `NUM_SETORES = 12`, and `NUM_PINOS = 4`. These are the fixed hardware constraints and should not be made configurable in the UI.
+`src/constants/irrigation.ts` holds the design system colors (`C.*`), `DIAS` array, and `NUM_SETORES = 12`. These are the fixed hardware constraints and should not be made configurable in the UI.
