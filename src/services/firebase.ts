@@ -72,11 +72,17 @@ export async function claimDevice(uid: string, mac: string): Promise<ClaimResult
 
 export async function getConfig(uid: string, mac: string): Promise<Config | null> {
   const snap = await getDoc(paths(uid, mac).config);
-  return snap.exists() ? (snap.data() as Config) : null;
+  if (!snap.exists()) return null;
+  const d = snap.data();
+  const temposMap = (d.tempos ?? {}) as Record<string, number[]>;
+  const tempos = Array.from({ length: 7 }, (_, i) => temposMap[String(i)] ?? []);
+  return { horaInicio: d.horaInicio, minutoInicio: d.minutoInicio, tempos };
 }
 
 export async function saveConfig(uid: string, mac: string, cfg: Config): Promise<void> {
-  await setDoc(paths(uid, mac).config, cfg);
+  const tempos: Record<string, number[]> = {};
+  cfg.tempos.forEach((row, i) => { tempos[String(i)] = row; });
+  await setDoc(paths(uid, mac).config, { horaInicio: cfg.horaInicio, minutoInicio: cfg.minutoInicio, tempos });
 }
 
 // ─── Status (listener em tempo real) ─────────────────────────────────────────
