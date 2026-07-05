@@ -35,6 +35,8 @@ export interface Status {
   ultimaVez: number | null;
   rtcOk?: boolean;
   sdOk?: boolean;
+  fluxoSensorOk?: boolean;
+  fluxoDetectado?: boolean;
 }
 
 export interface LogEntry {
@@ -128,6 +130,8 @@ export function subscribeStatus(
         ultimaVez:    d.ultimaVez?.toMillis() ?? null,
         rtcOk:        d.rtcOk === undefined ? undefined : Boolean(d.rtcOk),
         sdOk:         d.sdOk === undefined ? undefined : Boolean(d.sdOk),
+        fluxoSensorOk:  d.fluxoSensorOk === undefined ? undefined : Boolean(d.fluxoSensorOk),
+        fluxoDetectado: d.fluxoDetectado === undefined ? undefined : Boolean(d.fluxoDetectado),
       });
     },
     (err) => onError?.(err),

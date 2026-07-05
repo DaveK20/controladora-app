@@ -139,6 +139,12 @@ export default function DeviceStatusScreen() {
                 <Text style={[s.onlineText, { color: C.textMuted }]}>RTC</Text>
                 <View style={[s.onlineDot, { backgroundColor: hwDotColor(status.sdOk), marginLeft: 8 }]} />
                 <Text style={[s.onlineText, { color: C.textMuted }]}>SD</Text>
+                {status.fluxoSensorOk && (
+                  <>
+                    <View style={[s.onlineDot, { backgroundColor: hwDotColor(status.fluxoDetectado), marginLeft: 8 }]} />
+                    <Text style={[s.onlineText, { color: C.textMuted }]}>Fluxo</Text>
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -173,6 +179,14 @@ export default function DeviceStatusScreen() {
               <View style={[s.progressFill, { width: `${pct}%` }]} />
             </View>
             <Text style={s.progressLabel}>{pct}% concluído</Text>
+
+            {status.fluxoSensorOk && status.fluxoDetectado === false && (
+              <View style={s.avisoFluxo}>
+                <Text style={s.avisoFluxoTexto}>
+                  ⚠ Fluxo de água não detectado — o tempo não está sendo contado
+                </Text>
+              </View>
+            )}
           </View>
         ) : (
           <View style={[s.statusBox, { backgroundColor: '#4a5568' }]}>
@@ -226,6 +240,9 @@ const s = StyleSheet.create({
   progressBg:   { backgroundColor: C.statusItem, borderRadius: 4, height: 8, marginTop: 8, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: C.verde },
   progressLabel:{ color: C.textMuted, fontSize: 11, textAlign: 'right', marginTop: 2 },
+
+  avisoFluxo:       { backgroundColor: '#5c1a1a', borderRadius: 8, borderWidth: 1, borderColor: C.vermelho, padding: 10, marginTop: 10 },
+  avisoFluxoTexto:  { color: C.vermelho, fontSize: 12, fontWeight: 'bold', textAlign: 'center' },
 
   actionRow: { flexDirection: 'row', gap: 8, justifyContent: 'center', marginVertical: 10 },
 
