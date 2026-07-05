@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { auth, onAuthStateChanged, signIn, signOut, signUp, User } from '@/services/auth';
+import { auth, onAuthStateChanged, resetPassword, signIn, signOut, signUp, User } from '@/services/auth';
 
 interface AuthCtx {
   user: User | null;
@@ -8,6 +8,7 @@ interface AuthCtx {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx>({
@@ -16,6 +17,7 @@ const Ctx = createContext<AuthCtx>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  resetPassword: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -30,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, authLoading, signIn, signUp, signOut }}>
+    <Ctx.Provider value={{ user, authLoading, signIn, signUp, signOut, resetPassword }}>
       {children}
     </Ctx.Provider>
   );

@@ -38,7 +38,7 @@ function mensagemErro(err: unknown): string {
 }
 
 export default function AuthScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword } = useAuth();
   const [mode, setMode]           = useState<Mode>('login');
   const [email, setEmail]         = useState('');
   const [senha, setSenha]         = useState('');
@@ -46,16 +46,36 @@ export default function AuthScreen() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [erro, setErro]           = useState('');
+  const [info, setInfo]           = useState('');
+  const [enviandoReset, setEnviandoReset] = useState(false);
 
   const trocarModo = (novo: Mode) => {
     setMode(novo);
     setErro('');
+    setInfo('');
     setSenha('');
     setConfirmar('');
   };
 
+  const handleEsqueciSenha = async () => {
+    setErro('');
+    setInfo('');
+    if (!email.trim()) { setErro('Informe o e-mail pra receber o link de redefinição.'); return; }
+
+    setEnviandoReset(true);
+    try {
+      await resetPassword(email.trim());
+      setInfo('E-mail de redefinição enviado! Confira sua caixa de entrada.');
+    } catch (err) {
+      setErro(mensagemErro(err));
+    } finally {
+      setEnviandoReset(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setErro('');
+    setInfo('');
 
     if (!email.trim())  { setErro('Informe o e-mail.'); return; }
     if (!senha)         { setErro('Informe a senha.'); return; }
@@ -156,7 +176,19 @@ export default function AuthScreen() {
             </>
           )}
 
-          {/* Mensagem de erro inline */}
+          {mode === 'login' && (
+            <TouchableOpacity
+              style={s.esqueciBtn}
+              onPress={handleEsqueciSenha}
+              disabled={enviandoReset}>
+              <Text style={s.esqueciTexto}>
+                {enviandoReset ? 'Enviando...' : 'Esqueci minha senha'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Mensagens inline */}
+          {!!info && <Text style={s.info}>{info}</Text>}
           {!!erro && <Text style={s.erro}>{erro}</Text>}
         </View>
 
@@ -218,6 +250,9 @@ const s = StyleSheet.create({
   senhaRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
   olho:      { paddingHorizontal: 2 },
   olhoTexto: { color: C.azul, fontSize: 13 },
+  esqueciBtn:   { alignItems: 'flex-end', marginTop: 10 },
+  esqueciTexto: { color: C.azul, fontSize: 13 },
+  info:      { color: C.verde, fontSize: 13, marginTop: 12 },
   erro:      { color: C.vermelho, fontSize: 13, marginTop: 12 },
   btn: {
     backgroundColor: C.verde,

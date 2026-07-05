@@ -1,9 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { claimDevice, ClaimResult, Status, subscribeStatus } from '@/services/firebase';
+import { subscribeControllers } from '@/services/firebase';
 
 // expo-secure-store não funciona na web — usa localStorage como fallback
 const storage = {
@@ -21,39 +21,28 @@ const storage = {
   },
 };
 
-const MAC_KEY = 'controladora_mac';
-const OFFLINE_THRESHOLD_MS = 45_000;
-
-// ─── Validação de MAC ─────────────────────────────────────────────────────────
-
-export function isValidMac(mac: string): boolean {
-  return /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac.trim());
-}
-
-export function normalizeMac(mac: string): string {
-  return mac.trim().toUpperCase();
-}
+const LAST_DEVICE_KEY = 'ultimo_dispositivo';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 interface AppCtx {
   uid: string | null;
-  mac: string | null;
-  macLoading: boolean;
-  connectMac: (mac: string) => Promise<ClaimResult>;
-  clearMac: () => Promise<void>;
-  status: Status | null;
-  online: boolean;
+  macs: string[];
+  macsLoading: boolean;
+  // Último dispositivo aberto — só um atalho de navegação (abrir direto nele
+  // ao logar), não é mais um gate de funcionalidade como antes.
+  lastOpenedMac: string | null;
+  lastOpenedLoading: boolean;
+  setLastOpenedMac: (mac: string | null) => Promise<void>;
 }
 
 const Ctx = createContext<AppCtx>({
   uid: null,
-  mac: null,
-  macLoading: true,
-  connectMac: async () => 'claimed',
-  clearMac: async () => {},
-  status: null,
-  online: false,
+  macs: [],
+  macsLoading: true,
+  lastOpenedMac: null,
+  lastOpenedLoading: true,
+  setLastOpenedMac: async () => {},
 });
 
 // ─── Provider ────────────────────────────────────────────────────────────────
@@ -62,67 +51,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
 
-  const [mac, setMac]               = useState<string | null>(null);
-  const [macLoading, setMacLoading] = useState(true);
-  const [status, setStatus]         = useState<Status | null>(null);
+  const [macs, setMacs]                       = useState<string[]>([]);
+  const [macsLoading, setMacsLoading]         = useState(true);
+  const [lastOpenedMac, setLastOpenedMacState] = useState<string | null>(null);
+  const [lastOpenedLoading, setLastOpenedLoading] = useState(true);
   const unsubRef = useRef<(() => void) | null>(null);
 
-  // Carrega o MAC salvo localmente ao iniciar (ou quando o uid muda)
-  useEffect(() => {
-    if (!uid) {
-      setMac(null);
-      setMacLoading(false);
-      return;
-    }
-    setMacLoading(true);
-    storage.getItem(`${MAC_KEY}_${uid}`).then((stored) => {
-      setMac(stored ?? null);
-      setMacLoading(false);
-    });
-  }, [uid]);
-
-  // Conecta o listener de status sempre que uid ou mac mudam
+  // Lista de dispositivos vinculados à conta (tempo real)
   useEffect(() => {
     unsubRef.current?.();
     unsubRef.current = null;
-    setStatus(null);
+    setMacs([]);
 
-    if (!uid || !mac) return;
+    if (!uid) {
+      setMacsLoading(false);
+      return;
+    }
 
-    unsubRef.current = subscribeStatus(uid, mac, setStatus, (err) =>
-      console.warn('subscribeStatus error:', err),
+    setMacsLoading(true);
+    unsubRef.current = subscribeControllers(
+      uid,
+      (list) => { setMacs(list); setMacsLoading(false); },
+      (err) => { console.warn('subscribeControllers error:', err); setMacsLoading(false); },
     );
 
     return () => {
       unsubRef.current?.();
       unsubRef.current = null;
     };
-  }, [uid, mac]);
+  }, [uid]);
 
-  // Reivindica o dispositivo e salva o MAC localmente
-  const connectMac = async (value: string): Promise<ClaimResult> => {
-    if (!uid) return 'taken';
-    const normalized = normalizeMac(value);
-    const result = await claimDevice(uid, normalized);
-    if (result !== 'taken') {
-      await storage.setItem(`${MAC_KEY}_${uid}`, normalized);
-      setMac(normalized);
+  // Carrega o último dispositivo aberto (atalho de navegação) ao logar
+  useEffect(() => {
+    if (!uid) {
+      setLastOpenedMacState(null);
+      setLastOpenedLoading(false);
+      return;
     }
-    return result;
-  };
+    setLastOpenedLoading(true);
+    storage.getItem(`${LAST_DEVICE_KEY}_${uid}`).then((stored) => {
+      setLastOpenedMacState(stored ?? null);
+      setLastOpenedLoading(false);
+    });
+  }, [uid]);
 
-  const clearMac = async () => {
-    if (uid) await storage.deleteItem(`${MAC_KEY}_${uid}`);
-    setMac(null);
-  };
-
-  const online =
-    status?.online === true &&
-    status.ultimaVez !== null &&
-    Date.now() - (status.ultimaVez ?? 0) < OFFLINE_THRESHOLD_MS;
+  const setLastOpenedMac = useCallback(async (mac: string | null) => {
+    setLastOpenedMacState((prev) => {
+      if (prev === mac) return prev;
+      return mac;
+    });
+    if (!uid) return;
+    if (mac) await storage.setItem(`${LAST_DEVICE_KEY}_${uid}`, mac);
+    else await storage.deleteItem(`${LAST_DEVICE_KEY}_${uid}`);
+  }, [uid]);
 
   return (
-    <Ctx.Provider value={{ uid, mac, macLoading, connectMac, clearMac, status, online }}>
+    <Ctx.Provider value={{ uid, macs, macsLoading, lastOpenedMac, lastOpenedLoading, setLastOpenedMac }}>
       {children}
     </Ctx.Provider>
   );

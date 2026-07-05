@@ -4,14 +4,18 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  QueryDocumentSnapshot,
   serverTimestamp,
   setDoc,
+  startAfter,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 
-import { db } from '@/lib/firebaseConfig';
+import { db, functions } from '@/lib/firebaseConfig';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -23,12 +27,14 @@ export interface Config {
 
 export interface Status {
   irrigando: boolean;
-  setorAtual: number;
+  setorAtual: number; // 0–11; -1 = parado/nenhum setor ativo
   diaCiclo: number;
   restaSeg: number;
   tempoConfMin: number;
   online: boolean;
   ultimaVez: number | null;
+  rtcOk?: boolean;
+  sdOk?: boolean;
 }
 
 export interface LogEntry {
@@ -40,7 +46,7 @@ export interface LogEntry {
 
 // ─── Paths ───────────────────────────────────────────────────────────────────
 // Estrutura: /users/{uid}/controllers/{mac}/...
-// Garante que cada usuário acessa apenas seus próprios dispositivos.
+// {mac} é sempre 12 hex maiúsculo sem separador (ver src/lib/mac.ts).
 
 const paths = (uid: string, mac: string) => ({
   config:   doc(db, `users/${uid}/controllers/${mac}/config/main`),
@@ -49,23 +55,37 @@ const paths = (uid: string, mac: string) => ({
   logs:     collection(db, `users/${uid}/controllers/${mac}/logs`),
 });
 
-// Registro global de propriedade do dispositivo
-const ownershipDoc = (mac: string) => doc(db, `controllers/${mac}`);
+// ─── Pareamento (Cloud Functions) ────────────────────────────────────────────
+// O vínculo de um ESP32 à conta é feito por código de 6 caracteres — ver
+// firebase_schema_esp32.txt. O app só chama as duas functions abaixo; quem
+// troca o código pelo Custom Token é o próprio ESP32.
 
-// ─── Vinculação de dispositivo ────────────────────────────────────────────────
+export async function gerarCodigoVinculacao(): Promise<{ code: string; expiraMinutos: number }> {
+  const fn = httpsCallable<void, { code: string; expiraMinutos: number }>(
+    functions,
+    'gerarCodigoVinculacao',
+  );
+  const { data } = await fn();
+  return data;
+}
 
-export type ClaimResult = 'claimed' | 'already_mine' | 'taken';
+export async function desvincularDispositivo(mac: string): Promise<void> {
+  const fn = httpsCallable<{ mac: string }, { ok: boolean }>(functions, 'desvincularDispositivo');
+  await fn({ mac });
+}
 
-export async function claimDevice(uid: string, mac: string): Promise<ClaimResult> {
-  const ref  = ownershipDoc(mac);
-  const snap = await getDoc(ref);
+// ─── Lista de dispositivos ────────────────────────────────────────────────────
 
-  if (!snap.exists()) {
-    await setDoc(ref, { ownerUid: uid, claimedAt: serverTimestamp() });
-    return 'claimed';
-  }
-
-  return snap.data().ownerUid === uid ? 'already_mine' : 'taken';
+export function subscribeControllers(
+  uid: string,
+  onUpdate: (macs: string[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    collection(db, `users/${uid}/controllers`),
+    (snap) => onUpdate(snap.docs.map((d) => d.id)),
+    (err) => onError?.(err),
+  );
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -100,12 +120,14 @@ export function subscribeStatus(
       const d = snap.data();
       onUpdate({
         irrigando:    Boolean(d.irrigando),
-        setorAtual:   Number(d.setorAtual ?? 0),
+        setorAtual:   Number(d.setorAtual ?? -1),
         diaCiclo:     Number(d.diaCiclo ?? 0),
         restaSeg:     Number(d.restaSeg ?? 0),
         tempoConfMin: Number(d.tempoConfMin ?? 0),
         online:       Boolean(d.online),
         ultimaVez:    d.ultimaVez?.toMillis() ?? null,
+        rtcOk:        d.rtcOk === undefined ? undefined : Boolean(d.rtcOk),
+        sdOk:         d.sdOk === undefined ? undefined : Boolean(d.sdOk),
       });
     },
     (err) => onError?.(err),
@@ -127,10 +149,30 @@ export async function sendCommand(
   });
 }
 
-// ─── Logs ─────────────────────────────────────────────────────────────────────
+// ─── Logs (paginado) ──────────────────────────────────────────────────────────
 
-export async function getLogs(uid: string, mac: string): Promise<LogEntry[]> {
-  const q    = query(paths(uid, mac).logs, orderBy('data', 'desc'));
+const LOGS_PAGE_SIZE = 50;
+
+export interface LogsPage {
+  logs: LogEntry[];
+  cursor: QueryDocumentSnapshot | null;
+  hasMore: boolean;
+}
+
+export async function getLogs(
+  uid: string,
+  mac: string,
+  cursor?: QueryDocumentSnapshot | null,
+): Promise<LogsPage> {
+  const ordenacao = [orderBy('data', 'desc'), orderBy('horaInicio', 'desc')] as const;
+  const q = cursor
+    ? query(paths(uid, mac).logs, ...ordenacao, startAfter(cursor), limit(LOGS_PAGE_SIZE))
+    : query(paths(uid, mac).logs, ...ordenacao, limit(LOGS_PAGE_SIZE));
+
   const snap = await getDocs(q);
-  return snap.docs.map((d) => d.data() as LogEntry);
+  return {
+    logs: snap.docs.map((d) => d.data() as LogEntry),
+    cursor: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+    hasMore: snap.docs.length === LOGS_PAGE_SIZE,
+  };
 }

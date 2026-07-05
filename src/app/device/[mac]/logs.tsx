@@ -1,3 +1,5 @@
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Platform,
@@ -9,35 +11,39 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useApp } from '@/contexts/AppContext';
 import { C } from '@/constants/irrigation';
 import { BottomTabInset } from '@/constants/theme';
+import { useApp } from '@/contexts/AppContext';
 import { getLogs, LogEntry } from '@/services/firebase';
 
-export default function LogsScreen() {
-  const { uid, mac } = useApp();
+export default function DeviceLogsScreen() {
+  const { mac } = useLocalSearchParams<{ mac: string }>();
+  const { uid } = useApp();
   const insets = useSafeAreaInsets();
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
 
-  const carregar = useCallback(async () => {
+  const [logs, setLogs]         = useState<LogEntry[]>([]);
+  const [cursor, setCursor]     = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMore, setHasMore]   = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(false);
+
+  const carregar = useCallback(async (reset: boolean, atualCursor: QueryDocumentSnapshot | null) => {
     if (!uid || !mac) return;
     setLoading(true);
     setError(false);
     try {
-      const data = await getLogs(uid, mac);
-      setLogs(data);
+      const page = await getLogs(uid, mac, reset ? null : atualCursor);
+      setLogs((prev) => (reset ? page.logs : [...prev, ...page.logs]));
+      setCursor(page.cursor);
+      setHasMore(page.hasMore);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [mac]);
+  }, [uid, mac]);
 
-  useEffect(() => {
-    carregar();
-  }, [carregar]);
+  useEffect(() => { carregar(true, null); }, [uid, mac]);
 
   const bottomPad = insets.bottom + BottomTabInset + 16;
   const contentPlatformStyle = Platform.select({
@@ -56,7 +62,7 @@ export default function LogsScreen() {
       contentInset={{ ...insets, bottom: bottomPad }}
       contentContainerStyle={contentPlatformStyle}>
 
-      <Text style={s.title}>📋 Logs de Irrigação</Text>
+      <Text style={s.title}>📋 Histórico</Text>
 
       {error && (
         <View style={[s.infoBox, { borderColor: C.vermelho }]}>
@@ -82,7 +88,7 @@ export default function LogsScreen() {
           <Text style={s.logNome}>{entry.nome}</Text>
           {entry.motivo && (
             <Text style={s.logMotivo}>
-              {entry.motivo === 'automatico' ? '🕐 Automático'
+              {entry.motivo === 'automatico' || entry.motivo === 'ciclo automatico' ? '🕐 Automático'
                 : entry.motivo === 'manual' ? '👆 Manual'
                 : entry.motivo === 'parado_manualmente' ? '⏹ Parado manualmente'
                 : entry.motivo}
@@ -91,12 +97,23 @@ export default function LogsScreen() {
         </View>
       ))}
 
-      <TouchableOpacity
-        style={[s.btn, loading && { opacity: 0.5 }]}
-        onPress={carregar}
-        disabled={loading}>
-        <Text style={s.btnText}>{loading ? '⏳ Carregando...' : '🔄 Atualizar'}</Text>
-      </TouchableOpacity>
+      <View style={s.footerRow}>
+        <TouchableOpacity
+          style={[s.btn, loading && { opacity: 0.5 }]}
+          onPress={() => carregar(true, null)}
+          disabled={loading}>
+          <Text style={s.btnText}>{loading ? '⏳ Carregando...' : '🔄 Atualizar'}</Text>
+        </TouchableOpacity>
+
+        {hasMore && (
+          <TouchableOpacity
+            style={[s.btn, s.btnCarregarMais, loading && { opacity: 0.5 }]}
+            onPress={() => carregar(false, cursor)}
+            disabled={loading}>
+            <Text style={s.btnText}>Carregar mais</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -112,6 +129,8 @@ const s = StyleSheet.create({
   logHora: { color: C.textMuted, fontSize: 12 },
   logNome: { color: C.text, fontSize: 14 },
   logMotivo: { color: C.textSec, fontSize: 12 },
-  btn: { backgroundColor: '#7f8c8d', borderRadius: 6, paddingHorizontal: 16, paddingVertical: 10, alignSelf: 'flex-start', marginTop: 4 },
+  footerRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  btn: { backgroundColor: '#7f8c8d', borderRadius: 6, paddingHorizontal: 16, paddingVertical: 10, alignSelf: 'flex-start' },
+  btnCarregarMais: { backgroundColor: C.azul },
   btnText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 });

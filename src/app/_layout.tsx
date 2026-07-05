@@ -1,20 +1,18 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useColorScheme, View } from 'react-native';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
 import { C } from '@/constants/irrigation';
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import AuthScreen from '@/screens/AuthScreen';
-import SetupScreen from '@/screens/SetupScreen';
 
 function Root() {
   const { user, authLoading } = useAuth();
-  const { mac, macLoading }   = useApp();
+  const { macsLoading } = useApp();
   const colorScheme = useColorScheme();
 
-  if (authLoading || macLoading) {
+  if (authLoading || (user && macsLoading)) {
     return <View style={{ flex: 1, backgroundColor: C.bg }} />;
   }
 
@@ -22,12 +20,12 @@ function Root() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {mac ? <AppTabs /> : <SetupScreen />}
+      <Stack screenOptions={{ headerShown: false }} />
     </ThemeProvider>
   );
 }
 
-export default function TabLayout() {
+export default function RootLayout() {
   return (
     <AuthProvider>
       <AppProvider>
