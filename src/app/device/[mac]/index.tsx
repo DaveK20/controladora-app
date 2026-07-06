@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
@@ -15,6 +15,7 @@ import { ToastView, useToast } from '@/components/toast';
 import { C, DIAS } from '@/constants/irrigation';
 import { BottomTabInset } from '@/constants/theme';
 import { useApp } from '@/contexts/AppContext';
+import { useDeviceMac } from '@/contexts/DeviceMacContext';
 import { formatMacDisplay } from '@/lib/mac';
 import { desvincularDispositivo, sendCommand, Status, subscribeStatus } from '@/services/firebase';
 
@@ -26,7 +27,7 @@ function hwDotColor(ok: boolean | undefined): string {
 }
 
 export default function DeviceStatusScreen() {
-  const { mac } = useLocalSearchParams<{ mac: string }>();
+  const mac = useDeviceMac();
   const { uid, setLastOpenedMac } = useApp();
   const insets = useSafeAreaInsets();
   const { toast, show: showToast } = useToast();
@@ -76,6 +77,7 @@ export default function DeviceStatusScreen() {
   };
 
   const handleDesvincular = () => {
+    if (!mac) return;
     Alert.alert(
       'Desvincular dispositivo',
       `Remover ${formatMacDisplay(mac)} da sua conta? O ESP32 vai precisar de um novo código pra parear de novo.`,
@@ -121,7 +123,7 @@ export default function DeviceStatusScreen() {
 
         <View style={s.header}>
           <View>
-            <Text style={s.title}>💧 {formatMacDisplay(mac)}</Text>
+            <Text style={s.title}>💧 {mac ? formatMacDisplay(mac) : ''}</Text>
             <TouchableOpacity onPress={() => router.replace('/')}>
               <Text style={s.backLink}>← Voltar à lista</Text>
             </TouchableOpacity>

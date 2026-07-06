@@ -1,5 +1,4 @@
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Platform,
@@ -14,10 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { C } from '@/constants/irrigation';
 import { BottomTabInset } from '@/constants/theme';
 import { useApp } from '@/contexts/AppContext';
+import { useDeviceMac } from '@/contexts/DeviceMacContext';
 import { getLogs, LogEntry } from '@/services/firebase';
 
 export default function DeviceLogsScreen() {
-  const { mac } = useLocalSearchParams<{ mac: string }>();
+  const mac = useDeviceMac();
   const { uid } = useApp();
   const insets = useSafeAreaInsets();
 

@@ -8,9 +8,11 @@
     "scheme": "controladora",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.davefranr.controladora"
     },
     "android": {
+      "package": "com.davefranr.controladora",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -40,6 +42,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "15c26d79-8678-46dd-ac8e-b60fe15aaef3"
+      }
     }
   }
 }

@@ -38,6 +38,7 @@ Desvincular: `desvincularDispositivo(mac)` (Cloud Function), a partir da tela de
 - `src/app/index.tsx` — **lista de dispositivos** da conta. Se existir um "último dispositivo aberto" (`lastOpenedMac` no `AppContext`) ainda presente na lista, redireciona automaticamente pra ele uma vez por sessão (flag em módulo, não por navegação — "Voltar à lista" não sofre bounce-back).
 - `src/app/adicionar-dispositivo.tsx` — tela de pareamento por código.
 - `src/app/device/[mac]/` — rotas por dispositivo, com `_layout.tsx` (nativo, `NativeTabs`) e `_layout.web.tsx` (web, `expo-router/ui` Tabs — `NativeTabs` não funciona em web) definindo 3 abas: `index` (Status), `config` (Configuração), `logs` (Histórico).
+- `useLocalSearchParams()` **não é confiável dentro das telas dessas abas** (`index.tsx`/`config.tsx`/`logs.tsx`) quando o layout ativo é o `NativeTabs` (`expo-router/unstable-native-tabs`, ainda instável) — `mac` chega `undefined` mesmo com a rota certa selecionada, causando crash (`.replace()` em undefined) e falhas silenciosas (guards `if (!mac) return` sem avisar nada). Por isso `_layout.tsx`/`_layout.web.tsx` leem `mac` uma vez (onde `useLocalSearchParams` funciona) e repassam via `DeviceMacProvider`/`useDeviceMac()` (`src/contexts/DeviceMacContext.tsx`) — as telas de dentro da aba usam esse hook, nunca `useLocalSearchParams` diretamente.
 - A rota de índice do segmento dinâmico é `/device/[mac]` (SEM `/index` — arquivos `index.tsx` não adicionam segmento à URL). Navegação programática usa a forma objeto: `router.push({ pathname: '/device/[mac]', params: { mac } })` — não usar template string (`` `/device/${mac}` ``), o typechecker rejeita. Usar `/device/[mac]/index` (com `/index` no pathname) compila mas causa "Unmatched Route" em runtime na web — confirmado via `.expo/types/router.d.ts`, que só lista `/device/[mac]` como Href válido.
 - `src/app/explore.tsx` existe mas não é referenciado em nenhum tab trigger — resquício do template `create-expo-app`, junto com `src/components/themed-text.tsx`, `themed-view.tsx`, `external-link.tsx`, `ui/collapsible.tsx`, `hint-row.tsx`, `web-badge.tsx` e `src/hooks/use-theme.ts` (só usados entre si e por `explore.tsx`). O design system real do app é `C.*` em `src/constants/irrigation.ts`, não esses componentes `Themed*`.
 
@@ -64,6 +65,8 @@ O `status` de cada dispositivo não vive mais no contexto global — cada tela q
 
 ### Firebase (`src/services/firebase.ts` + `src/lib/firebaseConfig.ts`)
 Usa o Firebase **JS SDK v12** (não `@react-native-firebase`). Funciona no Expo Go sem build nativo. Exporta `db`, `auth` e `functions` (`getFunctions(app, 'us-central1')`).
+
+`auth` usa `initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) })`, não `getAuth(app)` — sem isso a sessão não sobrevive ao fechar o app (fica só em memória no RN). `getReactNativePersistence` não está nos tipos empacotados de `firebase/auth` (por isso o `@ts-expect-error` ali) mas existe no build React Native de fato usado pelo Metro — ver https://expo.fyi/firebase-js-auth-setup.
 
 Todos os paths ficam sob `/users/{uid}/controllers/{mac}/...`. `{mac}` é sempre 12 hex maiúsculo **sem separador** (`src/lib/mac.ts`: `isValidMac`, `normalizeMac`, `formatMacDisplay` — este último só pra exibição, nunca usar no path).
 

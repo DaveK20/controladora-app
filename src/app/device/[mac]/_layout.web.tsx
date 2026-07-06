@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { C } from '@/constants/irrigation';
 import { useApp } from '@/contexts/AppContext';
+import { DeviceMacProvider } from '@/contexts/DeviceMacContext';
 
 function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
   return (
@@ -21,20 +22,22 @@ export default function DeviceTabsWeb() {
   useEffect(() => { if (mac) setLastOpenedMac(mac); }, [mac, setLastOpenedMac]);
 
   return (
-    <Tabs>
-      <TabSlot style={{ flex: 1 }} />
-      <TabList style={s.tabList}>
-        <TabTrigger name="status" href={{ pathname: '/device/[mac]', params: { mac } }} asChild>
-          <TabButton>Status</TabButton>
-        </TabTrigger>
-        <TabTrigger name="config" href={{ pathname: '/device/[mac]/config', params: { mac } }} asChild>
-          <TabButton>Configuração</TabButton>
-        </TabTrigger>
-        <TabTrigger name="logs" href={{ pathname: '/device/[mac]/logs', params: { mac } }} asChild>
-          <TabButton>Histórico</TabButton>
-        </TabTrigger>
-      </TabList>
-    </Tabs>
+    <DeviceMacProvider mac={mac}>
+      <Tabs>
+        <TabSlot style={{ flex: 1 }} />
+        <TabList style={s.tabList}>
+          <TabTrigger name="status" href={{ pathname: '/device/[mac]', params: { mac } }} asChild>
+            <TabButton>Status</TabButton>
+          </TabTrigger>
+          <TabTrigger name="config" href={{ pathname: '/device/[mac]/config', params: { mac } }} asChild>
+            <TabButton>Configuração</TabButton>
+          </TabTrigger>
+          <TabTrigger name="logs" href={{ pathname: '/device/[mac]/logs', params: { mac } }} asChild>
+            <TabButton>Histórico</TabButton>
+          </TabTrigger>
+        </TabList>
+      </Tabs>
+    </DeviceMacProvider>
   );
 }
 

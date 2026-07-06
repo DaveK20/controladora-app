@@ -1,4 +1,3 @@
-import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -16,10 +15,11 @@ import { ToastView, useToast } from '@/components/toast';
 import { C, DIAS, NUM_SETORES } from '@/constants/irrigation';
 import { BottomTabInset } from '@/constants/theme';
 import { useApp } from '@/contexts/AppContext';
+import { useDeviceMac } from '@/contexts/DeviceMacContext';
 import { getConfig, saveConfig } from '@/services/firebase';
 
 export default function DeviceConfigScreen() {
-  const { mac } = useLocalSearchParams<{ mac: string }>();
+  const mac = useDeviceMac();
   const { uid } = useApp();
   const insets = useSafeAreaInsets();
   const { toast, show: showToast } = useToast();
@@ -60,7 +60,10 @@ export default function DeviceConfigScreen() {
   useEffect(() => { loadConfig(); }, [loadConfig]);
 
   const handleSave = async () => {
-    if (!uid || !mac) return;
+    if (!uid || !mac) {
+      Alert.alert('Erro ao salvar', 'Dispositivo não identificado — volte à lista e tente novamente.');
+      return;
+    }
     setSaving(true);
     try {
       await saveConfig(uid, mac, { horaInicio, minutoInicio, tempos });
