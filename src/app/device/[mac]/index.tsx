@@ -2,10 +2,12 @@ import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -17,7 +19,7 @@ import { BottomTabInset } from '@/constants/theme';
 import { useApp } from '@/contexts/AppContext';
 import { useDeviceMac } from '@/contexts/DeviceMacContext';
 import { formatMacDisplay } from '@/lib/mac';
-import { desvincularDispositivo, sendCommand, Status, subscribeStatus } from '@/services/firebase';
+import { desvincularDispositivo, renameController, sendCommand, Status, subscribeStatus } from '@/services/firebase';
 
 const OFFLINE_THRESHOLD_MS = 90 * 60_000; // heartbeat do ESP32 é a cada 1h — margem confortável acima disso
 
@@ -28,13 +30,18 @@ function hwDotColor(ok: boolean | undefined): string {
 
 export default function DeviceStatusScreen() {
   const mac = useDeviceMac();
-  const { uid, setLastOpenedMac } = useApp();
+  const { uid, nomes, setLastOpenedMac } = useApp();
   const insets = useSafeAreaInsets();
   const { toast, show: showToast } = useToast();
 
   const [status, setStatus]         = useState<Status | null>(null);
   const [cmdPending, setCmdPending] = useState(false);
   const [unlinking, setUnlinking]   = useState(false);
+  const [renaming, setRenaming]     = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [novoNome, setNovoNome]     = useState('');
+
+  const nome = mac ? nomes[mac] : undefined;
 
   useEffect(() => {
     if (!uid || !mac) return;
@@ -101,6 +108,25 @@ export default function DeviceStatusScreen() {
     }
   };
 
+  const handleRenomear = () => {
+    setNovoNome(nome ?? '');
+    setRenameOpen(true);
+  };
+
+  const salvarNome = async () => {
+    if (!uid || !mac) return;
+    setRenaming(true);
+    try {
+      await renameController(uid, mac, novoNome);
+      setRenameOpen(false);
+      showToast('Apelido salvo!');
+    } catch (e: unknown) {
+      Alert.alert('Erro ao renomear', e instanceof Error ? e.message : String(e));
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const bottomPad = insets.bottom + BottomTabInset + 16;
   const contentPlatformStyle = Platform.select({
     android: {
@@ -123,7 +149,8 @@ export default function DeviceStatusScreen() {
 
         <View style={s.header}>
           <View>
-            <Text style={s.title}>💧 {mac ? formatMacDisplay(mac) : ''}</Text>
+            <Text style={s.title}>💧 {nome || (mac ? formatMacDisplay(mac) : '')}</Text>
+            {!!nome && mac && <Text style={s.macSec}>{formatMacDisplay(mac)}</Text>}
             <TouchableOpacity onPress={() => router.replace('/')}>
               <Text style={s.backLink}>← Voltar à lista</Text>
             </TouchableOpacity>
@@ -213,12 +240,42 @@ export default function DeviceStatusScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={s.desvincularBtn} onPress={handleDesvincular} disabled={unlinking}>
-          <Text style={s.desvincularText}>
-            {unlinking ? 'Desvinculando...' : 'Desvincular dispositivo'}
-          </Text>
-        </TouchableOpacity>
+        <View style={s.rodapeAcoes}>
+          <TouchableOpacity onPress={handleRenomear}>
+            <Text style={s.renomearText}>✏️ Renomear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.desvincularBtn} onPress={handleDesvincular} disabled={unlinking}>
+            <Text style={s.desvincularText}>
+              {unlinking ? 'Desvinculando...' : 'Desvincular dispositivo'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      <Modal visible={renameOpen} transparent animationType="fade" onRequestClose={() => setRenameOpen(false)}>
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitulo}>Apelido do dispositivo</Text>
+            <TextInput
+              style={s.modalInput}
+              value={novoNome}
+              onChangeText={setNovoNome}
+              placeholder={mac ? formatMacDisplay(mac) : ''}
+              placeholderTextColor={C.textMuted}
+              autoFocus
+              maxLength={40}
+            />
+            <View style={s.modalBotoes}>
+              <TouchableOpacity style={s.modalBtnCancelar} onPress={() => setRenameOpen(false)} disabled={renaming}>
+                <Text style={s.modalBtnCancelarText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.modalBtnSalvar} onPress={salvarNome} disabled={renaming}>
+                <Text style={s.modalBtnSalvarText}>{renaming ? 'Salvando...' : 'Salvar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -227,7 +284,8 @@ const s = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: C.bg },
 
   header:      { marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title:       { fontSize: 18, fontWeight: 'bold', color: C.verde, fontFamily: 'monospace' },
+  title:       { fontSize: 18, fontWeight: 'bold', color: C.verde },
+  macSec:      { color: C.textMuted, fontSize: 11, fontFamily: 'monospace', marginTop: 1 },
   backLink:    { color: C.textMuted, fontSize: 12, marginTop: 4 },
   onlineRow:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   onlineDot:   { width: 8, height: 8, borderRadius: 4 },
@@ -253,6 +311,27 @@ const s = StyleSheet.create({
   btnLaranja: { backgroundColor: C.laranja },
   btnVermelho:{ backgroundColor: C.vermelho },
 
-  desvincularBtn:  { alignItems: 'center', marginTop: 12 },
+  rodapeAcoes:     { alignItems: 'center', marginTop: 12, gap: 10 },
+  renomearText:    { color: C.azul, fontSize: 13 },
+  desvincularBtn:  { alignItems: 'center' },
   desvincularText: { color: C.textMuted, fontSize: 13 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  modalCard:    { backgroundColor: C.card, borderRadius: 12, padding: 20, gap: 14 },
+  modalTitulo:  { color: C.text, fontSize: 16, fontWeight: 'bold' },
+  modalInput: {
+    backgroundColor: C.input,
+    color: C.text,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#555',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+  },
+  modalBotoes:         { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
+  modalBtnCancelar:    { paddingVertical: 8, paddingHorizontal: 12 },
+  modalBtnCancelarText:{ color: C.textMuted, fontSize: 14 },
+  modalBtnSalvar:      { backgroundColor: C.verde, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 },
+  modalBtnSalvarText:  { color: '#fff', fontWeight: 'bold', fontSize: 14 },
 });

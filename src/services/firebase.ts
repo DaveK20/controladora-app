@@ -51,10 +51,11 @@ export interface LogEntry {
 // {mac} é sempre 12 hex maiúsculo sem separador (ver src/lib/mac.ts).
 
 const paths = (uid: string, mac: string) => ({
-  config:   doc(db, `users/${uid}/controllers/${mac}/config/main`),
-  status:   doc(db, `users/${uid}/controllers/${mac}/status/main`),
-  comandos: collection(db, `users/${uid}/controllers/${mac}/comandos`),
-  logs:     collection(db, `users/${uid}/controllers/${mac}/logs`),
+  controlador: doc(db, `users/${uid}/controllers/${mac}`),
+  config:      doc(db, `users/${uid}/controllers/${mac}/config/main`),
+  status:      doc(db, `users/${uid}/controllers/${mac}/status/main`),
+  comandos:    collection(db, `users/${uid}/controllers/${mac}/comandos`),
+  logs:        collection(db, `users/${uid}/controllers/${mac}/logs`),
 });
 
 // ─── Pareamento (Cloud Functions) ────────────────────────────────────────────
@@ -80,14 +81,25 @@ export async function desvincularDispositivo(mac: string): Promise<void> {
 
 export function subscribeControllers(
   uid: string,
-  onUpdate: (macs: string[]) => void,
+  onUpdate: (macs: string[], nomes: Record<string, string>) => void,
   onError?: (error: Error) => void,
 ): () => void {
   return onSnapshot(
     collection(db, `users/${uid}/controllers`),
-    (snap) => onUpdate(snap.docs.map((d) => d.id)),
+    (snap) => {
+      const nomes: Record<string, string> = {};
+      snap.docs.forEach((d) => {
+        const nome = d.data().nome;
+        if (typeof nome === 'string' && nome) nomes[d.id] = nome;
+      });
+      onUpdate(snap.docs.map((d) => d.id), nomes);
+    },
     (err) => onError?.(err),
   );
+}
+
+export async function renameController(uid: string, mac: string, nome: string): Promise<void> {
+  await setDoc(paths(uid, mac).controlador, { nome: nome.trim() }, { merge: true });
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────

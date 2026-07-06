@@ -54,12 +54,17 @@ Só arquivos dentro de `src/app/` viram rotas do Expo Router. `src/screens/` é 
 ### Autenticação (`src/contexts/AuthContext.tsx` + `src/services/auth.ts`)
 Email/senha via Firebase Auth (`signIn`, `signUp`, `signOut`, `resetPassword`, `onAuthStateChanged`). `AuthContext` expõe `user`/`authLoading` pro boot flow. `src/screens/AuthScreen.tsx` (login/cadastro) traduz códigos de erro do Firebase (`auth/wrong-password` etc.) pra mensagens em português — ver `FIREBASE_ERRORS` no próprio arquivo.
 
+Cadastro exige senha forte (`src/lib/passwordStrength.ts`: `avaliarForcaSenha` — 8+ caracteres, maiúscula, minúscula, número, caractere especial; os 5 critérios têm que passar, `score === 5`). Isso é só uma trava client-side — pra bloquear de verdade contra alguém chamando a API do Firebase direto (fora do app), precisaria configurar "Password Policy" em Authentication → Settings no Console do Firebase.
+
 ### AppContext (`src/contexts/AppContext.tsx`)
 Multi-dispositivo — não guarda mais "o MAC", guarda a lista:
 - `uid`
 - `macs: string[]` + `macsLoading` — via `subscribeControllers` (onSnapshot em `/users/{uid}/controllers`), tempo real
+- `nomes: Record<string, string>` — apelido de cada dispositivo (campo `nome` no doc `/users/{uid}/controllers/{mac}`), vem do mesmo listener de `subscribeControllers`; ausência de entrada = sem apelido, UI cai pro MAC formatado
 - `lastOpenedMac` + `lastOpenedLoading` — persistido via `expo-secure-store` (na web, `localStorage` como fallback) na chave `ultimo_dispositivo_{uid}`; só um atalho de navegação, não um gate de funcionalidade
 - `setLastOpenedMac(mac)` — chamado a partir de `device/[mac]/_layout.tsx` sempre que um dashboard de dispositivo monta
+
+Renomear um dispositivo é `renameController(uid, mac, nome)` (`src/services/firebase.ts`) — `setDoc(..., {merge:true})` direto no doc raiz do controlador, sem Cloud Function (as regras já permitem o dono escrever ali). UI em `device/[mac]/index.tsx` (botão "✏️ Renomear" perto de "Desvincular dispositivo").
 
 O `status` de cada dispositivo não vive mais no contexto global — cada tela que precisa dele chama `subscribeStatus(uid, mac, ...)` diretamente (ver `src/app/index.tsx` e `src/app/device/[mac]/index.tsx`).
 
@@ -72,7 +77,7 @@ Todos os paths ficam sob `/users/{uid}/controllers/{mac}/...`. `{mac}` é sempre
 
 | Path | Escreve | Lê |
 |---|---|---|
-| `/users/{uid}/controllers` (lista) | Cloud Function `vincularComCodigo` | App (`subscribeControllers`) |
+| `/users/{uid}/controllers` (lista) | Cloud Function `vincularComCodigo`; campo `nome` também escrito pelo App (`renameController`) | App (`subscribeControllers`) |
 | `config/main` | App | ESP32 |
 | `status/main` | ESP32 | App (via `onSnapshot`) |
 | `comandos/{id}` | App | ESP32 |

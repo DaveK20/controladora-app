@@ -29,6 +29,7 @@ interface AppCtx {
   uid: string | null;
   macs: string[];
   macsLoading: boolean;
+  nomes: Record<string, string>;
   // Último dispositivo aberto — só um atalho de navegação (abrir direto nele
   // ao logar), não é mais um gate de funcionalidade como antes.
   lastOpenedMac: string | null;
@@ -40,6 +41,7 @@ const Ctx = createContext<AppCtx>({
   uid: null,
   macs: [],
   macsLoading: true,
+  nomes: {},
   lastOpenedMac: null,
   lastOpenedLoading: true,
   setLastOpenedMac: async () => {},
@@ -53,6 +55,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [macs, setMacs]                       = useState<string[]>([]);
   const [macsLoading, setMacsLoading]         = useState(true);
+  const [nomes, setNomes]                     = useState<Record<string, string>>({});
   const [lastOpenedMac, setLastOpenedMacState] = useState<string | null>(null);
   const [lastOpenedLoading, setLastOpenedLoading] = useState(true);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -71,7 +74,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMacsLoading(true);
     unsubRef.current = subscribeControllers(
       uid,
-      (list) => { setMacs(list); setMacsLoading(false); },
+      (list, listNomes) => { setMacs(list); setNomes(listNomes); setMacsLoading(false); },
       (err) => { console.warn('subscribeControllers error:', err); setMacsLoading(false); },
     );
 
@@ -106,7 +109,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [uid]);
 
   return (
-    <Ctx.Provider value={{ uid, macs, macsLoading, lastOpenedMac, lastOpenedLoading, setLastOpenedMac }}>
+    <Ctx.Provider value={{ uid, macs, macsLoading, nomes, lastOpenedMac, lastOpenedLoading, setLastOpenedMac }}>
       {children}
     </Ctx.Provider>
   );

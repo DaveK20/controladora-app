@@ -26,7 +26,7 @@ function useDeviceStatus(uid: string | null, mac: string) {
   return status;
 }
 
-function DeviceItem({ uid, mac, onPress }: { uid: string; mac: string; onPress: () => void }) {
+function DeviceItem({ uid, mac, nome, onPress }: { uid: string; mac: string; nome?: string; onPress: () => void }) {
   const status = useDeviceStatus(uid, mac);
   const online = !!status?.online
     && status.ultimaVez !== null
@@ -40,7 +40,8 @@ function DeviceItem({ uid, mac, onPress }: { uid: string; mac: string; onPress: 
   return (
     <TouchableOpacity style={s.item} onPress={onPress}>
       <View style={{ flex: 1 }}>
-        <Text style={s.itemMac}>{formatMacDisplay(mac)}</Text>
+        <Text style={s.itemMac}>{nome || formatMacDisplay(mac)}</Text>
+        {!!nome && <Text style={s.itemMacSec}>{formatMacDisplay(mac)}</Text>}
         <Text style={[s.itemStatus, online && { color: C.verde }]}>{linha}</Text>
       </View>
       <View style={[s.dot, { backgroundColor: online ? C.verde : '#888' }]} />
@@ -49,7 +50,7 @@ function DeviceItem({ uid, mac, onPress }: { uid: string; mac: string; onPress: 
 }
 
 export default function DispositivosScreen() {
-  const { uid, macs, macsLoading, lastOpenedMac } = useApp();
+  const { uid, macs, macsLoading, nomes, lastOpenedMac } = useApp();
   const { signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const [checked, setChecked] = useState(jaAbriuAutomaticamente);
@@ -96,6 +97,7 @@ export default function DispositivosScreen() {
             key={mac}
             uid={uid!}
             mac={mac}
+            nome={nomes[mac]}
             onPress={() => router.push({ pathname: '/device/[mac]', params: { mac } })}
           />
         ))}
@@ -128,7 +130,8 @@ const s = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
-  itemMac:    { color: C.text, fontSize: 16, fontWeight: 'bold', fontFamily: 'monospace' },
+  itemMac:    { color: C.text, fontSize: 16, fontWeight: 'bold' },
+  itemMacSec: { color: C.textMuted, fontSize: 11, fontFamily: 'monospace', marginTop: 1 },
   itemStatus: { color: C.textMuted, fontSize: 13, marginTop: 2 },
   dot:        { width: 10, height: 10, borderRadius: 5, marginLeft: 10 },
 

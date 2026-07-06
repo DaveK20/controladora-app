@@ -12,6 +12,7 @@ import {
 
 import { C } from '@/constants/irrigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { avaliarForcaSenha } from '@/lib/passwordStrength';
 
 type Mode = 'login' | 'cadastro';
 
@@ -49,6 +50,10 @@ export default function AuthScreen() {
   const [info, setInfo]           = useState('');
   const [enviandoReset, setEnviandoReset] = useState(false);
 
+  const forca = avaliarForcaSenha(senha);
+  const corForca = forca.score <= 2 ? C.vermelho : forca.score <= 4 ? C.laranja : C.verde;
+  const labelForca = forca.score <= 2 ? 'Fraca' : forca.score <= 4 ? 'Média' : 'Forte';
+
   const trocarModo = (novo: Mode) => {
     setMode(novo);
     setErro('');
@@ -81,7 +86,10 @@ export default function AuthScreen() {
     if (!senha)         { setErro('Informe a senha.'); return; }
 
     if (mode === 'cadastro') {
-      if (senha.length < 6)     { setErro('A senha deve ter pelo menos 6 caracteres.'); return; }
+      if (avaliarForcaSenha(senha).score < 5) {
+        setErro('A senha não atende aos requisitos de segurança abaixo.');
+        return;
+      }
       if (senha !== confirmar)  { setErro('As senhas não coincidem.'); return; }
     }
 
@@ -158,6 +166,25 @@ export default function AuthScreen() {
               <Text style={s.olhoTexto}>{mostrarSenha ? 'ocultar' : 'mostrar'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Barra de força — só no cadastro */}
+          {mode === 'cadastro' && (
+            <View style={s.forcaContainer}>
+              <View style={s.forcaBarRow}>
+                <View style={s.forcaBarBg}>
+                  <View style={[s.forcaBarFill, { width: `${(forca.score / 5) * 100}%`, backgroundColor: corForca }]} />
+                </View>
+                {!!senha && <Text style={[s.forcaLabel, { color: corForca }]}>{labelForca}</Text>}
+              </View>
+              <View style={s.forcaChecklist}>
+                <Text style={[s.forcaItem, forca.comprimento && { color: C.verde }]}>{forca.comprimento ? '✓' : '○'} 8+ caracteres</Text>
+                <Text style={[s.forcaItem, forca.maiuscula && { color: C.verde }]}>{forca.maiuscula ? '✓' : '○'} Maiúscula</Text>
+                <Text style={[s.forcaItem, forca.minuscula && { color: C.verde }]}>{forca.minuscula ? '✓' : '○'} Minúscula</Text>
+                <Text style={[s.forcaItem, forca.numero && { color: C.verde }]}>{forca.numero ? '✓' : '○'} Número</Text>
+                <Text style={[s.forcaItem, forca.especial && { color: C.verde }]}>{forca.especial ? '✓' : '○'} Caractere especial</Text>
+              </View>
+            </View>
+          )}
 
           {/* Confirmar senha — só no cadastro */}
           {mode === 'cadastro' && (
@@ -250,6 +277,13 @@ const s = StyleSheet.create({
   senhaRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
   olho:      { paddingHorizontal: 2 },
   olhoTexto: { color: C.azul, fontSize: 13 },
+  forcaContainer: { marginTop: 10, gap: 6 },
+  forcaBarRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  forcaBarBg:     { flex: 1, height: 6, borderRadius: 3, backgroundColor: C.input, overflow: 'hidden' },
+  forcaBarFill:   { height: '100%', borderRadius: 3 },
+  forcaLabel:     { fontSize: 12, fontWeight: 'bold' },
+  forcaChecklist: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  forcaItem:      { color: C.textMuted, fontSize: 11 },
   esqueciBtn:   { alignItems: 'flex-end', marginTop: 10 },
   esqueciTexto: { color: C.azul, fontSize: 13 },
   info:      { color: C.verde, fontSize: 13, marginTop: 12 },
