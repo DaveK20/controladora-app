@@ -36,7 +36,10 @@ export default function DeviceLogsScreen() {
       setLogs((prev) => (reset ? page.logs : [...prev, ...page.logs]));
       setCursor(page.cursor);
       setHasMore(page.hasMore);
-    } catch {
+    } catch (e: unknown) {
+      // Sem este log, uma falha de índice/permissão do Firestore vira só
+      // "Erro ao carregar logs." na tela, sem nenhuma pista de causa.
+      console.warn('getLogs falhou:', e);
       setError(true);
     } finally {
       setLoading(false);
